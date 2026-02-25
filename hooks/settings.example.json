@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "agent-smith -c /home/bpayne/.config/agent-smith/config.env stop",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt|elicitation_dialog",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "agent-smith -c /home/bpayne/.config/agent-smith/config.env notify",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

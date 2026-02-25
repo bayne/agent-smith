@@ -1,0 +1,13 @@
+.venv/
+.env
+__pycache__/
+.git/
+tests/
+scripts/
+.claude/
+*.pyc
+.gitignore
+Dockerfile
+.dockerignore
+.idea/
+.vscode/

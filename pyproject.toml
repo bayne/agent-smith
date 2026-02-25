@@ -1,0 +1,27 @@
+[project]
+name = "agent-smith"
+version = "0.1.0"
+description = "Bridge Claude Code hook notifications to a Matrix chat room"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastmcp",
+    "matrix-nio",
+    "python-dotenv>=1.2.1",
+]
+
+[project.scripts]
+agent-smith = "agent_smith.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
