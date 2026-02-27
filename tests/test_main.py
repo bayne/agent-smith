@@ -1,11 +1,14 @@
 """Tests for agent_smith.main."""
 
+import argparse
 import io
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from agent_smith.main import (
+    DEFAULT_CONFIG_PATH,
+    _build_overrides,
     _truncate,
     format_notify_message,
     format_stop_message,
@@ -250,6 +253,80 @@ class TestFormatNotifyMessage:
     def test_missing_fields_use_defaults(self):
         result = format_notify_message({})
         assert result == "Notification in **unknown**: Input needed"
+
+
+def _make_args(**kwargs) -> argparse.Namespace:
+    """Return a Namespace with defaults matching parse_args output."""
+    defaults = {"config": None, "homeserver": None, "token": None, "room": None}
+    defaults.update(kwargs)
+    return argparse.Namespace(**defaults)
+
+
+class TestBuildOverrides:
+    def test_auto_loads_default_config(self, tmp_path, monkeypatch):
+        cfg = tmp_path / "config.env"
+        cfg.write_text(
+            "MATRIX_HOMESERVER=https://default.example.org\n"
+            "MATRIX_ACCESS_TOKEN=default_token\n"
+            "MATRIX_ROOM_ID=!default:example.org\n"
+        )
+        monkeypatch.setattr("agent_smith.main.DEFAULT_CONFIG_PATH", str(cfg))
+
+        overrides = _build_overrides(_make_args())
+
+        assert overrides["MATRIX_HOMESERVER"] == "https://default.example.org"
+        assert overrides["MATRIX_ACCESS_TOKEN"] == "default_token"
+        assert overrides["MATRIX_ROOM_ID"] == "!default:example.org"
+
+    def test_explicit_config_overrides_default(self, tmp_path, monkeypatch):
+        default_cfg = tmp_path / "default.env"
+        default_cfg.write_text("MATRIX_HOMESERVER=https://default.example.org\n")
+        explicit_cfg = tmp_path / "explicit.env"
+        explicit_cfg.write_text(
+            "MATRIX_HOMESERVER=https://explicit.example.org\n"
+            "MATRIX_ACCESS_TOKEN=explicit_token\n"
+            "MATRIX_ROOM_ID=!explicit:example.org\n"
+        )
+        monkeypatch.setattr("agent_smith.main.DEFAULT_CONFIG_PATH", str(default_cfg))
+
+        overrides = _build_overrides(_make_args(config=str(explicit_cfg)))
+
+        assert overrides["MATRIX_HOMESERVER"] == "https://explicit.example.org"
+
+    def test_no_error_when_default_config_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "agent_smith.main.DEFAULT_CONFIG_PATH", str(tmp_path / "nonexistent.env")
+        )
+
+        overrides = _build_overrides(_make_args())
+
+        assert overrides == {}
+
+    def test_cli_flags_override_config_file(self, tmp_path, monkeypatch):
+        cfg = tmp_path / "config.env"
+        cfg.write_text(
+            "MATRIX_HOMESERVER=https://file.example.org\n"
+            "MATRIX_ACCESS_TOKEN=file_token\n"
+            "MATRIX_ROOM_ID=!file:example.org\n"
+        )
+        monkeypatch.setattr("agent_smith.main.DEFAULT_CONFIG_PATH", str(cfg))
+
+        overrides = _build_overrides(
+            _make_args(homeserver="https://cli.example.org", room="!cli:example.org")
+        )
+
+        assert overrides["MATRIX_HOMESERVER"] == "https://cli.example.org"
+        assert overrides["MATRIX_ROOM_ID"] == "!cli:example.org"
+        assert overrides["MATRIX_ACCESS_TOKEN"] == "file_token"  # from file
+
+
+class TestDefaultConfigPath:
+    def test_is_xdg_config_path(self):
+        import os
+
+        assert DEFAULT_CONFIG_PATH == os.path.expanduser(
+            "~/.config/agent-smith/config.env"
+        )
 
 
 class TestReadStdinJson:

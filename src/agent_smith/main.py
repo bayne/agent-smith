@@ -16,6 +16,8 @@ from agent_smith.install import run_install
 
 log = logging.getLogger("agent-smith")
 
+DEFAULT_CONFIG_PATH = os.path.expanduser("~/.config/agent-smith/config.env")
+
 mcp = FastMCP("agent-smith")
 
 
@@ -142,7 +144,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="agent-smith",
         description="MCP server that gives Claude Code the ability to send messages to a Matrix chat room.",
-        epilog="""\
+        epilog=f"""\
 examples:
   agent-smith                         start the MCP server (stdio transport)
   agent-smith send "hello world"      send a message directly
@@ -151,6 +153,10 @@ examples:
   agent-smith notify                  handle a Notification hook (reads JSON from stdin)
   agent-smith install settings.json              show diff of hook changes for a settings file
   agent-smith install -c config.env settings.json  show diff with a config file path in hook commands
+
+default config file:
+  {DEFAULT_CONFIG_PATH}
+  Loaded automatically if it exists. Use dotenv format with MATRIX_* variables.
 
 environment variables:
   MATRIX_HOMESERVER    Matrix server URL (e.g. https://matrix.example.org)
@@ -164,7 +170,7 @@ environment variables:
         "--config",
         "-c",
         metavar="FILE",
-        help="path to config file (dotenv format with MATRIX_* variables)",
+        help=f"path to config file (dotenv format with MATRIX_* variables); default: {DEFAULT_CONFIG_PATH}",
     )
     parser.add_argument("--homeserver", metavar="URL", help="Matrix homeserver URL")
     parser.add_argument("--token", metavar="TOKEN", help="Matrix access token")
@@ -204,8 +210,11 @@ environment variables:
 def _build_overrides(args: argparse.Namespace) -> dict[str, str]:
     """Build config overrides from parsed CLI arguments."""
     overrides: dict[str, str] = {}
-    if args.config:
-        overrides.update(load_config_file(args.config))
+    config_path = args.config
+    if not config_path and os.path.exists(DEFAULT_CONFIG_PATH):
+        config_path = DEFAULT_CONFIG_PATH
+    if config_path:
+        overrides.update(load_config_file(config_path))
     if args.homeserver:
         overrides["MATRIX_HOMESERVER"] = args.homeserver
     if args.token:
@@ -217,7 +226,8 @@ def _build_overrides(args: argparse.Namespace) -> dict[str, str]:
 
 def main() -> None:
     """Entry point: route to MCP server or subcommand."""
-    load_dotenv()
+    load_dotenv(DEFAULT_CONFIG_PATH)  # load default config (won't override shell vars)
+    load_dotenv()  # load .env from cwd as lower-priority fallback
     logging.basicConfig(
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         level=os.environ.get("LOG_LEVEL", "WARNING").upper(),
@@ -245,13 +255,14 @@ def main() -> None:
         print("Message sent")
     elif args.command == "install":
         config_path = getattr(args, "install_config", None) or args.config
-        overrides = _build_overrides(args)
+        if not config_path and os.path.exists(DEFAULT_CONFIG_PATH):
+            config_path = DEFAULT_CONFIG_PATH
         run_install(
             args.settings_file,
             config_path=config_path,
-            homeserver=overrides.get("MATRIX_HOMESERVER"),
-            token=overrides.get("MATRIX_ACCESS_TOKEN"),
-            room=overrides.get("MATRIX_ROOM_ID"),
+            homeserver=args.homeserver,
+            token=args.token,
+            room=args.room,
         )
     else:
         mcp.run()

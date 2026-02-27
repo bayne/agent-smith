@@ -19,7 +19,15 @@ Managed with [uv](https://docs.astral.sh/uv/). Requires Python >= 3.14.
 
 ## Configuration
 
-Set these environment variables:
+Place a dotenv-format file at `~/.config/agent-smith/config.env` — it is loaded automatically:
+
+```env
+MATRIX_HOMESERVER=https://matrix.example.org
+MATRIX_ACCESS_TOKEN=syt_...
+MATRIX_ROOM_ID=!abc:example.org
+```
+
+Alternatively, set these environment variables directly (they take precedence over the config file):
 
 - `MATRIX_HOMESERVER` — Matrix server URL
 - `MATRIX_ACCESS_TOKEN` — Matrix access token
