@@ -31,10 +31,18 @@ Built-in subcommands integrate with Claude Code's hook system to send Matrix not
 
 - `agent-smith stop` — reads Stop hook JSON from stdin, formats and sends a notification
 - `agent-smith notify` — reads Notification hook JSON from stdin, formats and sends a notification
+- `agent-smith install <settings.json>` — shows a coloured diff of hook changes, prompts to apply
 - `hooks/settings.example.json` — example `~/.claude/settings.json` config
 
-Set `AGENT_SMITH_DIR` in the settings env block to this repo's path.
+Use `install` to add hooks to your settings file:
+
+```sh
+agent-smith install ~/.claude/settings.json                         # interactive: review diff in pager, then accept/reject
+agent-smith install -c /path/to/config.env ~/.claude/settings.json  # embed a config file path in hook commands
+agent-smith install ~/.claude/settings.json > changes.diff          # non-interactive: raw diff to stdout
+```
 
 ## Architecture
 
-Single module at `src/agent_smith/main.py`. A `FastMCP` server instance exposes the `send_message` tool, which accepts a message string and sends it to the configured Matrix room via `matrix-nio` `AsyncClient`. The CLI uses subcommands: `send` for direct messages, `stop` and `notify` for hook integration. With no subcommand it starts the MCP server. Entry point is `main()`, registered as the `agent-smith` console script.
+- `src/agent_smith/main.py` — CLI entry point and MCP server. A `FastMCP` server instance exposes the `send_message` tool, which accepts a message string and sends it to the configured Matrix room via `matrix-nio` `AsyncClient`. The CLI uses subcommands: `send` for direct messages, `stop` and `notify` for hook integration, `install` for interactive hook installation. With no subcommand it starts the MCP server. Entry point is `main()`, registered as the `agent-smith` console script.
+- `src/agent_smith/install.py` — Install sub-command logic: hook merging (`install_hooks`), unified diff generation (`generate_install_diff`), ANSI colorization (`colorize_diff`), pager display (`show_in_pager`), interactive confirmation (`confirm_apply`), and end-to-end orchestration (`run_install`).

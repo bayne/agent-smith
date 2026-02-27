@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from agent_smith.main import (
+    _truncate,
     format_notify_message,
     format_stop_message,
     get_config,
@@ -49,10 +50,12 @@ class TestGetConfig:
         monkeypatch.setenv("MATRIX_ACCESS_TOKEN", "env_token")
         monkeypatch.setenv("MATRIX_ROOM_ID", "!env:example.org")
 
-        config = get_config({
-            "MATRIX_HOMESERVER": "https://cli.example.org",
-            "MATRIX_ROOM_ID": "!cli:example.org",
-        })
+        config = get_config(
+            {
+                "MATRIX_HOMESERVER": "https://cli.example.org",
+                "MATRIX_ROOM_ID": "!cli:example.org",
+            }
+        )
         assert config["MATRIX_HOMESERVER"] == "https://cli.example.org"
         assert config["MATRIX_ACCESS_TOKEN"] == "env_token"
         assert config["MATRIX_ROOM_ID"] == "!cli:example.org"
@@ -62,11 +65,13 @@ class TestGetConfig:
         monkeypatch.delenv("MATRIX_ACCESS_TOKEN", raising=False)
         monkeypatch.delenv("MATRIX_ROOM_ID", raising=False)
 
-        config = get_config({
-            "MATRIX_HOMESERVER": "https://cli.example.org",
-            "MATRIX_ACCESS_TOKEN": "cli_token",
-            "MATRIX_ROOM_ID": "!cli:example.org",
-        })
+        config = get_config(
+            {
+                "MATRIX_HOMESERVER": "https://cli.example.org",
+                "MATRIX_ACCESS_TOKEN": "cli_token",
+                "MATRIX_ROOM_ID": "!cli:example.org",
+            }
+        )
         assert config == {
             "MATRIX_HOMESERVER": "https://cli.example.org",
             "MATRIX_ACCESS_TOKEN": "cli_token",
@@ -156,10 +161,22 @@ class TestSendMessage:
 
 
 class TestFormatStopMessage:
-    def test_normal_case(self):
+    def test_with_last_message(self):
+        data = {
+            "session_id": "abc12345xyz",
+            "cwd": "/home/user/myproject",
+            "last_assistant_message": "I've finished refactoring the auth module.",
+        }
+        result = format_stop_message(data)
+        assert result == (
+            "Task complete in **myproject**:\n\n"
+            "I've finished refactoring the auth module."
+        )
+
+    def test_without_last_message(self):
         data = {"session_id": "abc12345xyz", "cwd": "/home/user/myproject"}
         result = format_stop_message(data)
-        assert result == "Task complete in **myproject** (session `abc12345`)"
+        assert result == "Task complete in **myproject**"
 
     def test_stop_hook_active_returns_none(self):
         data = {"session_id": "abc12345", "cwd": "/tmp", "stop_hook_active": True}
@@ -173,12 +190,16 @@ class TestFormatStopMessage:
 
     def test_missing_fields_use_defaults(self):
         result = format_stop_message({})
-        assert result == "Task complete in **unknown** (session `unknown`)"
+        assert result == "Task complete in **unknown**"
 
-    def test_session_id_truncated_to_eight(self):
-        data = {"session_id": "abcdefghijklmnop", "cwd": "/tmp/x"}
+    def test_long_last_message_truncated(self):
+        data = {
+            "cwd": "/tmp/proj",
+            "last_assistant_message": "x" * 600,
+        }
         result = format_stop_message(data)
-        assert "`abcdefgh`" in result
+        assert len(result) < 600
+        assert result.endswith("…")
 
 
 class TestFormatNotifyMessage:
